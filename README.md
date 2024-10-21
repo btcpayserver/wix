@@ -14,43 +14,43 @@ This guide will show you how you can enable Bitcoin payments using BTCPay Server
 
 1. In your Wix site, open your Wix Editor.
 2. At the top click on "**Dev Mode**" and the "**Turn on Dev Mode**" button to enable the developer mode.
-![Dev Mode](./docs/images/01_wix_dev-mode.png)
+![Dev Mode](./img/01_wix_dev-mode.png)
 3. Now on the left side, click on the `{ }` icon to open the code editor.
 4. In the section "Service Plugins" click on the **(+)** sign and select "**Payment**"
-![Add payment provider service plugin](./docs/images/02_wix_service-plugin-payment.png)
+![Add payment provider service plugin](./img/02_wix_service-plugin-payment.png)
 5. On the following screen, click "**Start now**"
-![Start now](./docs/images/03_wix_ppsp-start-now.png)
+![Start now](./img/03_wix_ppsp-start-now.png)
 6. On the legal terms page, check the terms and click "**Accept**"
-![Accept terms](./docs/images/04_wix_ppsp-legal-notice.png)
+![Accept terms](./img/04_wix_ppsp-legal-notice.png)
 7. Now enter the name of the plugin: "**BTCPay**" (you can use any name but this will make it easier to follow the guide). Then, click "Add & Edit Code":
-![Add & Edit Code](./docs/images/05_wix_ppsp-name.png)
+![Add & Edit Code](./img/05_wix_ppsp-name.png)
 8. This created the directory "BTCPay" containing two files: `BTCPay.js` and `BTCPay-config.js` which is open in the editor. 
-![BTCPay-config.js](./docs/images/06_wix_ppsp-btcpay-config.png)
+![BTCPay-config.js](./img/06_wix_ppsp-btcpay-config.png)
 9. Next steps are to copy the contents of those two files from our [Git repository](https://github.com/btcpayserver/wix). You can see the same data structure as on your wix editor. In the `BTCPay-config.js` file, paste the code from the same file on our Git repository: [BTCPay-config.js](https://github.com/btcpayserver/wix/blob/main/backend/service-plugins/payment-provider/BTCPay/BTCPay-config.js). Easiest to click the "**Copy raw file**" icon. 
-![BTCPay-config.js](./docs/images/07_wix_gh-btcpay-config.png)
+![BTCPay-config.js](./img/07_wix_gh-btcpay-config.png)
 10. Make sure you delete example code on the `BTCPay-config.js` file in the wix editor before pasting the new code.
-![BTCPay-config.js completed](./docs/images/08_wix_ppsp-btcpay-config-complete.png)
+![BTCPay-config.js completed](./img/08_wix_ppsp-btcpay-config-complete.png)
 11. Now, open the `BTCPay.js` file in the wix editor and paste the code from our Git repository: [BTCPay.js](https://github.com/btcpayserver/wix/blob/main/backend/service-plugins/payment-provider/BTCPay/BTCPay.js). Do not forget to remove all the example code from the file before pasting the copied code.
-![BTCPay.js](./docs/images/09_wix_gh-btcpay.png)
-![BTCPay.js](./docs/images/10_wix_ppsp-btcpay.png)
+![BTCPay.js](./img/09_wix_gh-btcpay.png)
+![BTCPay.js](./img/10_wix_ppsp-btcpay.png)
 12. Now we need to add the `http-functions.js` file to the `backend` directory. To do so, in the "backend" section of your editor click again on the **(+)** icon and select "**Expose Site API**" which creates the mentioned `http-functions.js` file. Note: If you already have that file present then you can skip this step.
-![Create http-functions.js](./docs/images/11_wix_backend-expose-site-api.png)
+![Create http-functions.js](./img/11_wix_backend-expose-site-api.png)
 13. Copy the code from our Git repository: [http-functions.js](https://github.com/btcpayserver/wix/blob/main/backend/http-functions.js). If you already had a `http-functions.js` file, make sure to add the code from the Git repository to the existing file add the copied code below the existing code. If not then make sure you delete all the example code before pasting the code from GitHub.
-![http-functions.js](./docs/images/12_wix_backend-http-functions.png)
+![http-functions.js](./img/12_wix_backend-http-functions.png)
 14. Now the code is done it is important to click on publish to save the changes and make the plugin available.
 
 ## Configure the payment service provider plugin (PSPP)
 1. Go back to your site's dashboard. On the left menu click on "**Settings**", on that page click "**Accept Payments**"
-![Settings](./docs/images/13_wix_settings.png)
-![Accept Payments](./docs/images/14_wix_accept-payments.png)
+![Settings](./img/13_wix_settings.png)
+![Accept Payments](./img/14_wix_accept-payments.png)
 2. On the following page, you should see "Bitcoin Payments with BTCPay" as payment provider. If not, try to refresh the page to clear the Wix cache. Click on "Connect"
-![BTCPay](./docs/images/15_wix_list-btcpay.png)
+![BTCPay](./img/15_wix_list-btcpay.png)
 3. You are now on the configuration page. You need to enter the following fields:
    - **BTCPay URL**: The URL of your BTCPay Server instance, e.g. `https://btcpay.example.com`
    - **API Key**: The API key of your BTCPay store
    - **Store ID**: The store ID of your BTCPay store
    - **Webhook Secret**: The webhook secret of your BTCPay store
-![Configuration](./docs/images/16_wix_btcpay-config.png)
+![Configuration](./img/16_wix_btcpay-config.png)
 
 ### BTCPay Server URL
 1. First, enter the "**BTCPay Server URL**", in our case `https://testing.btcpay.tech`
@@ -58,34 +58,34 @@ This guide will show you how you can enable Bitcoin payments using BTCPay Server
 
 ### API Key 
 1. Go to the API Keys page under "**Account**" -> "**API Keys**" (For BTCPay Server versions prior 2.0 it is under "Account" -> "Manage Account" -> "API Keys"). Click on "**Generate Key**"
-![API Keys](./docs/images/17_btcpay-api-key-page.png)
+![API Keys](./img/17_btcpay-api-key-page.png)
 2. Enter a label such as "Wix API Key". 
 3. For the permissions, click on the "_**Select specific stores**_" link and select the store you want to connect to Wix, in our example "Wix BTCPay Demo" - for the following permissions: `View invoices`, `Create invoice`, `Modify invoices`, `Modify stores webhooks`, `View your stores`, `Create non-approved pull payments` (used for refunds in the future)
-![API Key permissions 1](./docs/images/18_btcpay-api-key-permissions-1.png)
-![API Key permissions 2](./docs/images/18_btcpay-api-key-permissions-2.png)
+![API Key permissions 1](./img/18_btcpay-api-key-permissions-1.png)
+![API Key permissions 2](./img/18_btcpay-api-key-permissions-2.png)
 4. Click on "**Generate API Key**" button and on the following page copy the API Key shown at the top
-![Copy generated API key](./docs/images/19_btcpay-api-key-copy.png)
+![Copy generated API key](./img/19_btcpay-api-key-copy.png)
 5. In your Wix store: paste that copied API key into the "**API Key**" field
 
 ### Store ID
 1. Go back to your BTCPay store and copy the "**Store ID**". Go to your store and click on "Settings" and copy the Store ID shown
-![Copy Store ID](./docs/images/20_btcpay-store-id.png)
+![Copy Store ID](./img/20_btcpay-store-id.png)
 2. In your Wix store: paste that copied Store ID into the "**Store ID**" field
 
 ### Webhook Secret
 1. Go back to your BTCPay store and click on "Settings" -> "Webhooks". Click on "Create Webhook"
-![Create webhook page](./docs/images/21_btcpay-webhook-page.png)
+![Create webhook page](./img/21_btcpay-webhook-page.png)
 2. **Payload URL**: Your Wix store URL where it can be reached combined with a callback path. E.g. `https://example.com/_functions/btcpayTrxWebHook` (replace example.com with your Wix store URL)
 3. **Secret**: This is auto-generated by BTCPay, you can show it by clicking on the "eye" icon
 4. Copy the "**Secret**" and paste it into the "**Webhook Secret**" field in your Wix store e.g. 'YOURWEBHOOKSECRET' as shown in our example
 5. Back on BTCPay webhook page, you can leave the other settings as is
 6. Click on "**Add Webhook**" to create the webhook on BTCPay. You should see the "The webhook has been created." message
-![Webhook created successfully](./docs/images/22_btcpay-webhook-saved.png)
+![Webhook created successfully](./img/22_btcpay-webhook-saved.png)
 
 ### Save the configuration
 1. Back in your Wix store, click on "**Connect**" to save the configuration
-![Save configuration](./docs/images/16_wix_btcpay-config.png)
-![Configuration saved](docs/images/23_wix_btcpay-config-saved.png)
+![Save configuration](./img/16_wix_btcpay-config.png)
+![Configuration saved](img/23_wix_btcpay-config-saved.png)
 
 ## Testing
 
