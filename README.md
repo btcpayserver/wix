@@ -85,7 +85,7 @@ This guide will show you how you can enable Bitcoin payments using BTCPay Server
 ### Save the configuration
 1. Back in your Wix store, click on "**Connect**" to save the configuration
 ![Save configuration](./img/wix/16_wix_btcpay-config.png)
-![Configuration saved](img/23_wix_btcpay-config-saved.png)
+![Configuration saved](./img/wix/23_wix_btcpay-config-saved.png)
 
 ## Testing
 
