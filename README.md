@@ -3,7 +3,8 @@
 This guide will show you how you can enable Bitcoin payments using BTCPay Server on your Wix store. At the time of writing it is not possible to package this into a Wix app, so you will need to follow the steps below and copy and paste the code into your Wix editor.
 
 ## Requirements
-- You have a [Wix](https://wix.com) account and online store up and running
+- You have a [Wix](https://wix.com) account and online store up and running 
+- You need to have a Wix subscription that includes eCommerce, e.g. Core or Business
 - You have a BTCPay Server version 1.10.0 or later, either [self-hosted](https://docs.btcpayserver.org/Deployment/) or [hosted by a third-party](https://docs.btcpayserver.org/Deployment/ThirdPartyHosting/). 
 - BTCPay needs to be reachable from the internet via a domain, e.g. https://mainnet.demo.btcpayserver.org
 - [You've a registered account on the instance](https://docs.btcpayserver.org/RegisterAccount/)
