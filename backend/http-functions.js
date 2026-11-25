@@ -1,6 +1,7 @@
 import wixPaymentProviderBackend from "wix-payment-provider-backend";
 import { ok, badRequest, notFound } from "wix-http-functions";
 import { secrets } from 'wix-secrets-backend.v2';
+import wixSecretsBackendV1 from 'wix-secrets-backend';
 import { elevate } from 'wix-auth';
 import { createHmac, timingSafeEqual } from 'crypto';
 
@@ -116,15 +117,31 @@ function normalizeUrl(url) {
 }
 
 async function getCredentials() {
+  let raw;
   try {
-    // getSecretValue resolves to the secret's value directly.
+    // v2 secrets require elevated auth, which http-function requests may
+    // not carry (they run without a user identity).
     const getSecretValue = elevate(secrets.getSecretValue);
-    const parsed = JSON.parse(await getSecretValue(SECRET_NAME));
+    raw = await getSecretValue(SECRET_NAME);
+  } catch (e) {
+    // Fall back to the deprecated v1 read, which needs no elevation.
+    console.error('BTCPay webhook: v2 secret read failed, trying v1:', e && (e.message || e));
+    try {
+      raw = await wixSecretsBackendV1.getSecret(SECRET_NAME);
+    } catch (e2) {
+      console.error('BTCPay webhook: reading credentials from the Secret Manager failed:', e2 && (e2.message || e2));
+      return null;
+    }
+  }
+  try {
+    const parsed = JSON.parse(raw);
     if (!parsed || !parsed.btcpayUrl || !parsed.apiKey || !parsed.storeId || !parsed.webhookSecret) {
+      console.error('BTCPay webhook: stored credentials are incomplete');
       return null;
     }
     return parsed;
   } catch (e) {
+    console.error('BTCPay webhook: stored credentials are not valid JSON');
     return null;
   }
 }
