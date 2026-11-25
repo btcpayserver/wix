@@ -73,13 +73,14 @@ export async function post_btcpayTrxWebHook(request) {
           pluginTransactionId: invoice.id + "|" + invoice.currency
         };
 
-  // Map the invoice status to Wix reason codes.
-  // "New" (no payment seen yet) is ignored. "Processing" approves at 0-conf;
-  // require confirmations via the BTCPay store settings if needed.
+  // Map the invoice status to the Wix submitEvent semantics:
+  // no reasonCode = approved, 3xxx = declined/canceled, 5xxx = pending.
   switch (invoice.status) {
-    case "Processing":
     case "Settled":
-      trx.reasonCode = 5009;
+      // Approved: the event is submitted without a reason code.
+      break;
+    case "Processing":
+      trx.reasonCode = 5009; // pending general
       break;
     case "Expired":
       trx.reasonCode = 3035;
