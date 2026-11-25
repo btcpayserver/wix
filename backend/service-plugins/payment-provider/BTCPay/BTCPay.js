@@ -1,5 +1,10 @@
-import { orders } from "wix-ecom-backend";
-import { elevate } from "wix-auth";
+import wixSecretsBackend from 'wix-secrets-backend';
+
+/**
+ * Credentials saved by connectAccount() and read by the webhook handler in
+ * http-functions.js, stored in the site's Secret Manager.
+ */
+const SECRET_NAME = 'btcpay_wix_credentials';
 
 /**
  * This payment plugin endpoint is triggered when a merchant provides required data to connect their PSP account to a Wix site.
@@ -9,19 +14,51 @@ import { elevate } from "wix-auth";
  * @returns {Promise<import('interfaces-psp-v1-payment-service-provider').ConnectAccountResponse | import('interfaces-psp-v1-payment-service-provider').BusinessError>}
  */
 export const connectAccount = async (options, context) => {
-    let sUrl = options.credentials.btcpayUrl;
-    sUrl += sUrl.endsWith('/') ? '' : '/';
+    const credentials = options.credentials;
     let returnObj = {
-        credentials: options.credentials
+        credentials: credentials
     };
-    const response = await fetch(sUrl + "api/v1/stores/" + options.credentials.storeId, {
-        method: 'get',
-        headers: {
-            "Authorization": "token " + options.credentials.apiKey
-        }
-    });
 
-    if (response.status == 200) {			
+    const sUrl = normalizeUrl(credentials.btcpayUrl);
+    if (!validateServerUrl(sUrl)) {
+        returnObj.errorCode = 400;
+        returnObj.errorMessage = "BTCPay Server URL must be a valid URL (https required, http only for local/private instances)";
+        returnObj.reasonCode = 1002;
+        return returnObj;
+    }
+    if (!credentials.apiKey || !credentials.storeId || !credentials.webhookSecret) {
+        returnObj.errorCode = 400;
+        returnObj.errorMessage = "API Key, Store ID and Webhook Secret are required";
+        returnObj.reasonCode = 1002;
+        return returnObj;
+    }
+
+    let response;
+    try {
+        response = await fetch(sUrl + "api/v1/stores/" + encodeURIComponent(credentials.storeId), {
+            method: 'get',
+            headers: {
+                "Authorization": "token " + credentials.apiKey
+            }
+        });
+    } catch (e) {
+        returnObj.errorCode = 500;
+        returnObj.errorMessage = "Error during connection with BTCPay";
+        returnObj.reasonCode = 1002;
+        return returnObj;
+    }
+
+    if (response.status == 200) {
+        // Persist the credentials (incl. the webhook secret) in the Secret
+        // Manager for the webhook handler in http-functions.js.
+        try {
+            await storeCredentials(credentials);
+        } catch (e) {
+            returnObj.errorCode = 500;
+            returnObj.errorMessage = "Could not store credentials in the site's Secret Manager";
+            returnObj.reasonCode = 1002;
+            return returnObj;
+        }
         returnObj.accountId = "myId";
         returnObj.accountName = "BTCPayAccount";
     } else {
@@ -40,8 +77,7 @@ export const connectAccount = async (options, context) => {
  * @returns {Promise<import('interfaces-psp-v1-payment-service-provider').CreateTransactionResponse | import('interfaces-psp-v1-payment-service-provider').BusinessError>}
  */
 export const createTransaction = async (options, context) => {
-    let sUrl = options.merchantCredentials.btcpayUrl;
-    sUrl += sUrl.endsWith('/') ? '' : '/';
+    const sUrl = normalizeUrl(options.merchantCredentials.btcpayUrl);
 
     const invoice = {
         currency: options.order.description.currency,
@@ -57,30 +93,38 @@ export const createTransaction = async (options, context) => {
             buyerName: options.order.description.billingAddress.firstName + ' ' + options.order.description.billingAddress.lastName,
             orderId: options.order._id,
             wixTxId: options.wixTransactionId,
-	    wixAdditionalId: options.merchantCredentials.webhookSecret,
             itemDesc: "from Wix",
-	    currency: options.order.description.currency
+            currency: options.order.description.currency
         }
     };
 
-    const response = await fetch(sUrl + "api/v1/stores/" +  options.merchantCredentials.storeId + "/invoices", {
-        method: 'post',
-        headers: {
-            "Content-Type": "application/json; charset=utf-8",
-            "Authorization": "token " + options.merchantCredentials.apiKey
-        },
-        body: JSON.stringify(invoice)
-    });
-    
-    if (response.status == 200) {
-       const json = await response.json()
+    let response;
+    try {
+        response = await fetch(sUrl + "api/v1/stores/" + encodeURIComponent(options.merchantCredentials.storeId) + "/invoices", {
+            method: 'post',
+            headers: {
+                "Content-Type": "application/json; charset=utf-8",
+                "Authorization": "token " + options.merchantCredentials.apiKey
+            },
+            body: JSON.stringify(invoice)
+        });
+    } catch (e) {
         return {
-            pluginTransactionId: json.id,
+            errorCode: 500,
+            errorMessage: "Error BTCPay payment",
+            reasonCode: 2001
+        };
+    }
+
+    if (response.status == 200) {
+        const json = await response.json();
+        return {
+            pluginTransactionId: json.id + "|" + options.order.description.currency,
             redirectUrl: json.checkoutLink
         };
 
     } else {
-	      return {
+        return {
             errorCode: response.status,
             errorMessage: "Error BTCPay payment",
             reasonCode: 2001
@@ -96,63 +140,140 @@ export const createTransaction = async (options, context) => {
  * @returns {Promise<import('interfaces-psp-v1-payment-service-provider').CreateRefundResponse | import('interfaces-psp-v1-payment-service-provider').BusinessError>}
  */
 export const refundTransaction = async (options, context) => {
-    let sUrl = options.merchantCredentials.btcpayUrl;
-    sUrl += sUrl.endsWith('/') ? '' : '/';
-	
-	const tblData = options.pluginTransactionId.split("|");
-	const btcPayID = tblData[0];
-	const currency = tblData[1];
-	//const wixOrderID = tblData[2];
-	
-	const refund = {
-		name: "Wix Refund " + options.wixRefundId,
-		description: "Wix Refund " + options.wixRefundId,
-		refundVariant: "Custom",
-		customCurrency: currency,
-		paymentMethod: "BTC",
-		customAmount: parseInt(options.refundAmount) / Math.pow(10, currencies[currency]) 
-	}
+    const credentials = options.merchantCredentials;
+    const sUrl = normalizeUrl(credentials.btcpayUrl);
 
-	const response = await fetch(sUrl + "api/v1/stores/" +  options.merchantCredentials.storeId + "/invoices/" + btcPayID + "/refund", {
-		method: 'post',
-		headers: {
-			"Content-Type": "application/json; charset=utf-8",
-			"Authorization": "token " + options.merchantCredentials.apiKey
-		},
-		body: JSON.stringify(refund)
-	});
-	
-    if (response.status == 200) {
-    	const jsonRefund = await response.json();
+    // pluginTransactionId carries "<btcpayInvoiceId>|<currency>" (older
+    // transactions may only carry the invoice id).
+    const tblData = (options.pluginTransactionId || '').split("|");
+    const btcPayID = tblData[0];
+    let currency = tblData.length > 1 ? tblData[1] : undefined;
 
-	/* const elevatedGetOrder = elevate(orders.getOrder);
-	const order =  await elevatedGetOrder (wixOrderID);
-	
-	if (!order) {
-		return {
-			errorCode: "99",
-			errorMessage: "order not found"
-		};
-	}
+    if (!btcPayID) {
+        return {
+            errorCode: 400,
+            errorMessage: "Missing BTCPay invoice reference",
+            reasonCode: 2001
+        };
+    }
 
-	const emailRefund = {
-		email: order.buyerInfo.email,
-		subject: "Refund of your order",
-		body: "The refund of your order (" + options.refundAmount + " " + currency + ") is ready. Please click here to claim your funds: " + jsonRefund.viewLink
-	}
-	const responseEmail = await fetch(sUrl + "api/v1/stores/" +  options.merchantCredentials.storeId + "/email/send", {
-			method: 'post',
-			headers: {
-				"Content-Type": "application/json; charset=utf-8",
-				"Authorization": "token " + options.merchantCredentials.apiKey
-			},
-			body: JSON.stringify(emailRefund)
-		});	*/
-	return {
-		pluginRefundId: jsonRefund.id
-	};
+    try {
+        // Resolve the invoice currency from BTCPay when the stored transaction
+        // id does not carry it (transactions created by earlier plugin versions).
+        if (!currencies[currency]) {
+            const invResponse = await fetch(sUrl + "api/v1/stores/" + encodeURIComponent(credentials.storeId) + "/invoices/" + encodeURIComponent(btcPayID), {
+                method: 'get',
+                headers: {
+                    "Authorization": "token " + credentials.apiKey
+                }
+            });
+            if (invResponse.status == 200) {
+                const invJson = await invResponse.json();
+                currency = invJson.currency;
+            } else {
+                return {
+                    errorCode: invResponse.status,
+                    errorMessage: "Error fetching BTCPay invoice for refund",
+                    reasonCode: 2001
+                };
+            }
+        }
+
+        const refund = {
+            name: "Wix Refund " + options.wixRefundId,
+            description: "Wix Refund " + options.wixRefundId,
+            refundVariant: "Custom",
+            customCurrency: currency,
+            paymentMethod: "BTC",
+            customAmount: parseInt(options.refundAmount) / Math.pow(10, currencies[currency])
+        }
+
+        const response = await fetch(sUrl + "api/v1/stores/" + encodeURIComponent(credentials.storeId) + "/invoices/" + encodeURIComponent(btcPayID) + "/refund", {
+            method: 'post',
+            headers: {
+                "Content-Type": "application/json; charset=utf-8",
+                "Authorization": "token " + credentials.apiKey
+            },
+            body: JSON.stringify(refund)
+        });
+
+        if (response.status == 200) {
+            const jsonRefund = await response.json();
+            return {
+                pluginRefundId: jsonRefund.id
+            };
+        }
+        // BTCPay rejects a second refund for an invoice that already has a
+        // non-archived refund, which acts as the double-refund guard here.
+        return {
+            errorCode: response.status,
+            errorMessage: "Error BTCPay refund",
+            reasonCode: 2001
+        };
+    } catch (e) {
+        return {
+            errorCode: 500,
+            errorMessage: "Error BTCPay refund",
+            reasonCode: 2001
+        };
     }
 };
+
+function normalizeUrl(url) {
+    let sUrl = (url || '').trim();
+    if (sUrl && !sUrl.endsWith('/')) {
+        sUrl += '/';
+    }
+    return sUrl;
+}
+
+function validateServerUrl(sUrl) {
+    try {
+        const u = new URL(sUrl);
+        if (u.protocol !== 'https:' && u.protocol !== 'http:') {
+            return false;
+        }
+        if (u.protocol === 'http:') {
+            // Allow plain http only for local/private development instances,
+            // so API key and webhook secret are never sent in cleartext
+            // over the public internet.
+            const host = u.hostname;
+            const isPrivate = host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local') ||
+                /^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+            if (!isPrivate) {
+                return false;
+            }
+        }
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+async function storeCredentials(credentials) {
+    const value = JSON.stringify({
+        btcpayUrl: normalizeUrl(credentials.btcpayUrl),
+        apiKey: credentials.apiKey,
+        storeId: credentials.storeId,
+        webhookSecret: credentials.webhookSecret
+    });
+    // updateSecret() only exists on newer Velo API versions; fall back to
+    // delete + create for compatibility.
+    try {
+        if (typeof wixSecretsBackend.updateSecret === 'function') {
+            await wixSecretsBackend.updateSecret(SECRET_NAME, value);
+            return;
+        }
+    } catch (e) {
+        // Secret does not exist yet or update unsupported - fall through.
+    }
+    try {
+        await wixSecretsBackend.createSecret(SECRET_NAME, value);
+    } catch (e) {
+        await wixSecretsBackend.deleteSecret(SECRET_NAME);
+        await wixSecretsBackend.createSecret(SECRET_NAME, value);
+    }
+}
 
 const currencies = {
 	"BIF": 0,
