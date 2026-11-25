@@ -1,6 +1,7 @@
 import wixPaymentProviderBackend from "wix-payment-provider-backend";
 import { ok, badRequest, notFound } from "wix-http-functions";
-import wixSecretsBackend from 'wix-secrets-backend';
+import { secrets } from 'wix-secrets-backend.v2';
+import { elevate } from 'wix-auth';
 import { createHmac, timingSafeEqual } from 'crypto';
 
 // Credentials (incl. the webhook secret) saved by connectAccount() in BTCPay.js,
@@ -116,8 +117,9 @@ function normalizeUrl(url) {
 
 async function getCredentials() {
   try {
-    const stored = await wixSecretsBackend.getSecret(SECRET_NAME);
-    const parsed = JSON.parse(stored.secret);
+    // getSecretValue resolves to the secret's value directly.
+    const getSecretValue = elevate(secrets.getSecretValue);
+    const parsed = JSON.parse(await getSecretValue(SECRET_NAME));
     if (!parsed || !parsed.btcpayUrl || !parsed.apiKey || !parsed.storeId || !parsed.webhookSecret) {
       return null;
     }
