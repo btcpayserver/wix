@@ -138,35 +138,50 @@ async function getCredentials() {
     }
   }
 
-  // Normalize what the secrets API returned: it should be the JSON string
-  // written by connectAccount, but some SDK versions resolve to a record
-  // object or wrap the value. Log shapes only - never secret contents.
+  // Log shape info only - never secret contents - then normalize and parse.
   if (raw && typeof raw === 'object') {
     console.error('BTCPay webhook: secret read via', source, 'returned an object with keys:', Object.keys(raw).join(','));
+  } else if (typeof raw !== 'string') {
+    console.error('BTCPay webhook: secret read via', source, 'returned type', typeof raw);
+  }
+  const parsedResult = parseStoredCredentials(raw);
+  if (!parsedResult.ok) {
+    console.error('BTCPay webhook: stored credentials are', parsedResult.reason, '(read via', source + ')');
+    return null;
+  }
+  return parsedResult.credentials;
+}
+
+// Parses the stored credentials value. The secrets API should resolve to the
+// JSON string written by connectAccount, but some SDK versions resolve to a
+// record object or wrap the value; normalize those shapes. Returns
+// { ok: true, credentials } or { ok: false, reason }. Never logs contents.
+function parseStoredCredentials(raw) {
+  if (raw && typeof raw === 'object') {
     raw = raw.value ?? raw.secret ?? '';
   }
   if (typeof raw !== 'string') {
-    console.error('BTCPay webhook: secret read via', source, 'returned type', typeof raw);
     raw = String(raw);
   }
-
   let parsed;
   try {
     parsed = JSON.parse(raw);
   } catch (e) {
-    // The value may be stored JSON-in-JSON; unwrap once before giving up.
+    return { ok: false, reason: 'not valid JSON' };
+  }
+  // The value may be stored JSON-in-JSON: the first parse then resolves to a
+  // string, unwrap that one more layer.
+  if (typeof parsed === 'string') {
     try {
-      parsed = JSON.parse(JSON.parse(raw));
-    } catch (e2) {
-      console.error('BTCPay webhook: stored credentials are not valid JSON (read via', source + ', typeof', typeof raw + ')');
-      return null;
+      parsed = JSON.parse(parsed);
+    } catch (e) {
+      return { ok: false, reason: 'not valid JSON' };
     }
   }
   if (!parsed || !parsed.btcpayUrl || !parsed.apiKey || !parsed.storeId || !parsed.webhookSecret) {
-    console.error('BTCPay webhook: stored credentials are incomplete (read via', source + ')');
-    return null;
+    return { ok: false, reason: 'incomplete' };
   }
-  return parsed;
+  return { ok: true, credentials: parsed };
 }
 
 // Constant-time comparison of the BTCPay-Sig header against an HMAC-SHA256
@@ -175,10 +190,12 @@ function verifySignature(secret, message, signature) {
   if (typeof secret !== 'string' || typeof message !== 'string' || typeof signature !== 'string') {
     return false;
   }
-  const expected = createHmac('sha256', secret).update(message).digest();
-  const actual = Buffer.from(signature, 'hex');
-  if (actual.length !== expected.length) {
+  // A SHA-256 HMAC is exactly 64 hex characters; Buffer.from would silently
+  // decode a truncated prefix and ignore trailing junk.
+  if (!/^[0-9a-fA-F]{64}$/.test(signature)) {
     return false;
   }
+  const expected = createHmac('sha256', secret).update(message).digest();
+  const actual = Buffer.from(signature, 'hex');
   return timingSafeEqual(actual, expected);
 }

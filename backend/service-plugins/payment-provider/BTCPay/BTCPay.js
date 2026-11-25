@@ -120,7 +120,25 @@ export const createTransaction = async (options, context) => {
     }
 
     if (response.status == 200) {
-        const json = await response.json();
+        let json;
+        try {
+            json = await response.json();
+        } catch (e) {
+            console.error('BTCPay createTransaction: could not parse the invoice response', e);
+            return {
+                errorCode: "500",
+                errorMessage: "Error BTCPay payment",
+                reasonCode: 2001
+            };
+        }
+        if (!json || !json.id) {
+            console.error('BTCPay createTransaction: invoice response without an id');
+            return {
+                errorCode: "500",
+                errorMessage: "Error BTCPay payment",
+                reasonCode: 2001
+            };
+        }
         return {
             pluginTransactionId: json.id + "|" + options.order.description.currency,
             redirectUrl: json.checkoutLink
@@ -163,7 +181,10 @@ export const refundTransaction = async (options, context) => {
     try {
         // Resolve the invoice currency from BTCPay when the stored transaction
         // id does not carry it (transactions created by earlier plugin versions).
-        if (!currencies[currency]) {
+        // hasOwnProperty instead of a truthiness check: zero-decimal currencies
+        // (e.g. JPY) map to 0 and must not be treated as unknown.
+        const isKnownCurrency = (c) => Object.prototype.hasOwnProperty.call(currencies, c);
+        if (!isKnownCurrency(currency)) {
             const invResponse = await fetch(sUrl + "api/v1/stores/" + encodeURIComponent(credentials.storeId) + "/invoices/" + encodeURIComponent(btcPayID), {
                 method: 'get',
                 headers: {
@@ -180,6 +201,14 @@ export const refundTransaction = async (options, context) => {
                     reasonCode: 2001
                 };
             }
+        }
+        if (!isKnownCurrency(currency)) {
+            console.error('BTCPay refundTransaction: unsupported currency', currency);
+            return {
+                errorCode: "400",
+                errorMessage: "Unsupported currency for refund",
+                reasonCode: 2001
+            };
         }
 
         const refund = {
@@ -237,12 +266,24 @@ function validateServerUrl(sUrl) {
             return false;
         }
         if (u.protocol === 'http:') {
-            // Allow plain http only for local/private development instances,
-            // so API key and webhook secret are never sent in cleartext
-            // over the public internet.
-            const host = u.hostname;
-            const isPrivate = host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local') ||
-                /^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+            // Allow plain http only for local development instances, so API
+            // key and webhook secret are never sent in cleartext over the
+            // public internet.
+            const host = u.hostname.toLowerCase();
+            if (host === 'localhost' || host === '::1' || host === '[::1]') {
+                return true;
+            }
+            // Private ranges only apply to IPv4 literals. A DNS name such as
+            // "10.example.com" is a public host and requires https.
+            const parts = host.split('.');
+            const isIpv4 = parts.length === 4 &&
+                parts.every(p => /^\d{1,3}$/.test(p) && Number(p) <= 255);
+            if (!isIpv4) {
+                return false;
+            }
+            const [a, b] = parts.map(Number);
+            const isPrivate = a === 10 || a === 127 ||
+                (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31);
             if (!isPrivate) {
                 return false;
             }
