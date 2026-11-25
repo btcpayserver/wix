@@ -61,7 +61,7 @@ This guide will show you how you can enable Bitcoin payments using BTCPay Server
 1. Go to the API Keys page under "**Account**" -> "**API Keys**" (For BTCPay Server versions prior 2.0 it is under "Account" -> "Manage Account" -> "API Keys"). Click on "**Generate Key**"
 ![API Keys](./img/wix/17_btcpay-api-key-page.png)
 2. Enter a label such as "Wix API Key". 
-3. For the permissions, click on the "_**Select specific stores**_" link and select the store you want to connect to Wix, in our example "Wix BTCPay Demo" - for the following permissions: `View invoices`, `Create invoice`, `Modify invoices`, `Modify stores webhooks`, `View your stores`, `Create non-approved pull payments` (used for refunds in the future)
+3. For the permissions, click on the "_**Select specific stores**_" link and select the store you want to connect to Wix, in our example "Wix BTCPay Demo" - for the following permissions: `View invoices`, `Create invoice`, `View your stores`, `Create non-approved pull payments` (used for refunds). The plugin re-checks the invoice state via the API on every webhook call, so `View invoices` is required; `Modify invoices` and `Modify stores webhooks` are not needed.
 ![API Key permissions 1](./img/wix/18_btcpay-api-key-permissions-1.png)
 ![API Key permissions 2](./img/wix/18_btcpay-api-key-permissions-2.png)
 4. Click on "**Generate API Key**" button and on the following page copy the API Key shown at the top
@@ -82,6 +82,13 @@ This guide will show you how you can enable Bitcoin payments using BTCPay Server
 5. Back on BTCPay webhook page, you can leave the other settings as is
 6. Click on "**Add Webhook**" to create the webhook on BTCPay. You should see the "The webhook has been created." message
 ![Webhook created successfully](./img/wix/22_btcpay-webhook-saved.png)
+
+**Note:** The webhook secret is stored encrypted in your Wix site's Secret Manager. It is not embedded in BTCPay invoices, so it can never leak through invoice data or webhook payloads.
+
+**Upgrading from an earlier version of this integration?** Older versions stored the webhook secret in the invoice metadata of every invoice, where it was exposed to anyone with invoice view access on the BTCPay server and echoed back in webhook payloads. After updating the code:
+1. Open the payment provider settings in Wix and click "**Connect**" again to save the credentials to the Secret Manager.
+2. **Rotate the secret**: delete the webhook in BTCPay, create a new one (this generates a new secret), update the "**Webhook Secret**" field in Wix and save.
+Rotating is important because the old secret remains stored on previously created invoices.
 
 ### Save the configuration
 1. Back in your Wix store, click on "**Connect**" to save the configuration
