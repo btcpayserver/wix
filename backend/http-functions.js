@@ -118,32 +118,54 @@ function normalizeUrl(url) {
 
 async function getCredentials() {
   let raw;
+  let source;
   try {
     // v2 secrets require elevated auth, which http-function requests may
     // not carry (they run without a user identity).
     const getSecretValue = elevate(secrets.getSecretValue);
     raw = await getSecretValue(SECRET_NAME);
+    source = 'v2';
   } catch (e) {
     // Fall back to the deprecated v1 read, which needs no elevation.
     console.error('BTCPay webhook: v2 secret read failed, trying v1:', e && (e.message || e));
     try {
       raw = await wixSecretsBackendV1.getSecret(SECRET_NAME);
+      source = 'v1';
     } catch (e2) {
       console.error('BTCPay webhook: reading credentials from the Secret Manager failed:', e2 && (e2.message || e2));
       return null;
     }
   }
+
+  // Normalize what the secrets API returned: it should be the JSON string
+  // written by connectAccount, but some SDK versions resolve to a record
+  // object or wrap the value. Log shapes only - never secret contents.
+  if (raw && typeof raw === 'object') {
+    console.error('BTCPay webhook: secret read via', source, 'returned an object with keys:', Object.keys(raw).join(','));
+    raw = raw.value ?? raw.secret ?? '';
+  }
+  if (typeof raw !== 'string') {
+    console.error('BTCPay webhook: secret read via', source, 'returned type', typeof raw);
+    raw = String(raw);
+  }
+
+  let parsed;
   try {
-    const parsed = JSON.parse(raw);
-    if (!parsed || !parsed.btcpayUrl || !parsed.apiKey || !parsed.storeId || !parsed.webhookSecret) {
-      console.error('BTCPay webhook: stored credentials are incomplete');
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    // The value may be stored JSON-in-JSON; unwrap once before giving up.
+    try {
+      parsed = JSON.parse(JSON.parse(raw));
+    } catch (e2) {
+      console.error('BTCPay webhook: stored credentials are not valid JSON (read via', source + ', typeof', typeof raw + ')');
       return null;
     }
-    return parsed;
-  } catch (e) {
-    console.error('BTCPay webhook: stored credentials are not valid JSON');
+  }
+  if (!parsed || !parsed.btcpayUrl || !parsed.apiKey || !parsed.storeId || !parsed.webhookSecret) {
+    console.error('BTCPay webhook: stored credentials are incomplete (read via', source + ')');
     return null;
   }
+  return parsed;
 }
 
 // Constant-time comparison of the BTCPay-Sig header against an HMAC-SHA256
