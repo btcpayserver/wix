@@ -11,6 +11,18 @@ This guide will show you how you can enable Bitcoin payments using BTCPay Server
 - [You've a BTCPay store on the instance](https://docs.btcpayserver.org/CreateStore/)
 - [You've a wallet connected to your store](https://docs.btcpayserver.org/WalletSetup/) and/or [Lightning Network](https://docs.btcpayserver.org/LightningNetwork/) enabled or connected.
 
+## Updating
+
+To update an existing installation to a newer version of this integration, just copy all the files again and follow the setup guide above, minus the "Configure the payment service provider plugin (PSPP)" step - your existing configuration is kept and does not need to be entered again:
+
+1. In your Wix Editor, replace the contents of the following files with the current versions from our [Git repository](https://github.com/btcpayserver/wix):
+   - `backend/service-plugins/payment-provider/BTCPay/BTCPay.js`
+   - `backend/service-plugins/payment-provider/BTCPay/BTCPay-config.js`
+   - `backend/http-functions.js` (if you already use this file for other functions, add the updated code below your existing code)
+2. Click on "**Publish**" to make the changes available on your site.
+
+Check the release notes of the version you are updating to: if it changes how credentials or the webhook are handled, the configuration section describes additional steps (e.g. re-connecting the payment provider or rotating the webhook secret).
+
 ## Create a payment provider service plugin (PPSP) 
 
 1. In your Wix site, open your Wix Editor.
